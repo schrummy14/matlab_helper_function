@@ -14,6 +14,17 @@ function varargout = ode56(ode,tspan,y0,options,varargin)
             end
         end
     end
+    progress_bar = false;
+    vararg_err = [];
+    for m = 1:length(varargin)
+        cur_opts = varargin{m};
+        switch cur_opts
+            case 'ProgressBar'
+                progress_bar = varargin{m+1};
+                vararg_err(end+1:end+2) = [m m+1];
+        end
+    end
+    varargin(vararg_err)=[];
     
     % Stats 
     nsteps  = 0;
@@ -238,6 +249,16 @@ function varargout = ode56(ode,tspan,y0,options,varargin)
         end
         nsteps = nsteps + 1;
         
+        if progress_bar
+            if ~exist('cur_time_step','var')
+                cur_time_step = linspace(tspan(1),tspan(end),500);
+            end
+            if tnew>=cur_time_step(1)
+                h_waitbar = waitbar(tnew/tspan(end));
+                cur_time_step(1) = [];
+            end
+        end
+        
         if haveEventFcn
             [te,ye,ie,valt,stop] = ...
                 odezero(@ntrp56,eventFcn,eventArgs,valt,t,y,tnew,ynew,t0,h,f,idxNonNegative);
@@ -320,6 +341,7 @@ function varargout = ode56(ode,tspan,y0,options,varargin)
                     idx = oldnout+1:nout;        
                     tout(idx) = tout_new;
                     yout(:,idx) = yout_new;
+                    
                 end
                 if haveOutputFcn
                     stop = feval(outputFcn,tout_new,yout_new(outputs,:),'',outputArgs{:});
@@ -358,6 +380,11 @@ function varargout = ode56(ode,tspan,y0,options,varargin)
                             nout, tout, yout,...
                             haveEventFcn, teout, yeout, ieout,...
                             {f3d,idxNonNegative});
+                        
+    if progress_bar
+        delete(h_waitbar);
+    end
+                        
     if nargout > 0
         if nargout == 1 && length(tspan)>2
             solver_output{1}.y = deval56(solver_output{1},tspan);
@@ -487,7 +514,7 @@ function [neq, tspan, ntspan, next, t0, tfinal, tdir, y0, f0, args, odeFcn, ...
         error('Inconsistent datatypes...')
     end
     
-    rtol = odeget(options,'RelTol',1e-3,'fast');
+    rtol = odeget(options,'RelTol',1e-4,'fast');
     if rtol < 100*eps(dataType)
         rtol = 100*eps(dataType);
         warning(['Increasing rtol, due to datatypes, to ', sprintf('%g',rtol)]);
@@ -712,18 +739,26 @@ end
 function [yinterp,ypinterp] = ntrp56(tinterp,t,y,~,~,h,f,idxNonNegative)
 
     
-    BI = zeros(10,5);
+%     BI = zeros(10,5);
 %     BI(1,1) = 1;
 %     BI(:,2) = 1/6*[-25 0 0 0 0   48 -36   16 -1 -2];
 %     BI(:,3) = 1/9*[ 70 0 0 0 0 -208 228 -112  1 21];
 %     BI(:,4) = 2/3*[-10 0 0 0 0   36 -48   28  1 -7];
 %     BI(:,5) = 8/15*[ 4 0 0 0 0  -16  24  -16 -1  5];
-    BI(1,1) = 1;
-    BI(:,2) = 0.166666666666666666666667*[-25 0 0 0 0   48 -36   16 -1 -2];
-    BI(:,3) = 0.111111111111111111111111*[ 70 0 0 0 0 -208 228 -112  1 21];
-    BI(:,4) = 0.666666666666666666666667*[-10 0 0 0 0   36 -48   28  1 -7];
-    BI(:,5) = 0.533333333333333333333333*[  4 0 0 0 0  -16  24  -16 -1  5];
     
+    BI = [
+        1   -25/6    70/9   -20/3   32/15
+        0       0       0       0       0
+        0       0       0       0       0
+        0       0       0       0       0
+        0       0       0       0       0
+        0    48/6  -208/9    72/3 -128/15
+        0   -36/6   228/9   -96/3  192/15
+        0    16/6  -112/9    56/3 -128/15
+        0    -1/6     1/9     2/3   -8/15
+        0    -2/6    21/9   -14/3   40/15
+        ];
+      
     s = (tinterp - t)/h;
     yinterp = y(:,ones(size(tinterp))) + f*(h*BI)*cumprod([s;s;s;s;s]);
     
@@ -1152,6 +1187,14 @@ function [Sxint,Spxint] = deval56(sol,xint,idx)
     end
 end
 
+% --------------------------------------------------------------------------
+
+% function idataOut = convert_idata(~,idataIn)
+% % Covert an old sol.idata to the MATLAB R14 format
+%     idataOut = idataIn;
+%     idataOut.f3d = shiftdim(idataIn.f3d,1);
+% % --------------------------------------------------------------------------
+% end
 function interpdata = extract_idata(~,sol,t,tidx,idxNonNegative)
 % Data for interpolation in [t(tidx), t(tidx+1))
 

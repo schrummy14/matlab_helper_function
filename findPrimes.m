@@ -1,4 +1,4 @@
-function p_list = findPrimes(n,p_list)
+function p_list = FindPrimes(n,p_list)
 
     
     p_start = 1;
